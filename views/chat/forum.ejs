@@ -1,0 +1,702 @@
+<%- include('../partials/header') %>
+
+<input type="hidden" id="forum-id" value="<%= forum.id %>">
+<input type="hidden" id="user-id" value="<%= userId %>">
+
+<!-- Socket.io Client -->
+<script src="/socket.io/socket.io.js"></script>
+
+<div class="row">
+    <div class="col-12">
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h2><i class="bi bi-chat"></i> <%= forum.title %></h2>
+                <small class="text-muted">
+                    Created by: <%= forum.creator.nickname %> |
+                    <%= new Date(forum.created_at).toLocaleString() %>
+                </small>
+            </div>
+            <a href="/forums" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
+
+        <!-- Online Users & Search Bar -->
+        <div class="card mb-3 shadow-sm">
+            <div class="card-body">
+                <!-- Online Users Indicator -->
+                <div class="mb-2">
+                    <small class="text-muted"><i class="bi bi-people"></i> Online:</small>
+                    <span id="onlineUsersList" class="ms-2">
+                        <span class="badge bg-secondary">Loading...</span>
+                    </span>
+                </div>
+                
+                <!-- Search -->
+                <div class="input-group">
+                    <input type="text" id="searchInput" class="form-control"
+                           placeholder="Search messages..." value="<%= searchQuery %>">
+                    <button class="btn btn-outline-primary" type="button" onclick="highlightSearch()">
+                        <i class="bi bi-search"></i> Search
+                    </button>
+                    <button class="btn btn-outline-secondary" type="button" onclick="clearSearch()">
+                        <i class="bi bi-x"></i> Clear
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reply Indicator -->
+        <div id="replyIndicator" class="alert alert-info d-none align-items-center">
+            <i class="bi bi-reply"></i>
+            Replying to: <strong><span id="replyToName"></span></strong>
+            <button class="btn btn-sm btn-danger ms-2" onclick="cancelReply()">
+                <i class="bi bi-x"></i> Cancel
+            </button>
+        </div>
+
+        <!-- Typing Indicator -->
+        <div id="typingIndicator" class="text-muted small ms-2 mb-2 d-none">
+            <i class="bi bi-pencil-square"></i> <span id="typingText"></span>
+        </div>
+
+        <!-- Load More Messages Button -->
+        <% if (hasMore) { %>
+        <div class="text-center mb-3">
+            <button id="loadMoreBtn" class="btn btn-outline-primary btn-sm" onclick="loadMoreMessages()">
+                <i class="bi bi-arrow-up-circle"></i> Load Older Messages
+                <span id="loadMoreSpinner" class="d-none">
+                    <span class="spinner-border spinner-border-sm"></span>
+                </span>
+            </button>
+            <small class="text-muted d-block mt-1">
+                Showing <%= (currentPage - 1) * 50 + chats.length %> of <%= totalMessages %> messages
+            </small>
+        </div>
+        <% } %>
+
+        <!-- Chat Container -->
+        <div class="chat-container mb-3 shadow-sm" id="chatContainer">
+            <%
+            function renderChat(chat, depth = 0) {
+                if (!chat) return;
+                const isOwn = chat.user_id === userId;
+                const isAdmin = chat.user.role === 'admin';
+                const isForumCreator = forum.creator_id === userId;
+                const readBy = chat.read_by || [];
+                const readCount = readBy.length;
+            %>
+            <div class="chat-message <%= isOwn ? 'own-message' : '' %>"
+                 <%= 'style="margin-left: ' + (depth * 30) + 'px"' %>
+                 data-message-id="<%= chat.id %>">
+                <div class="message-header">
+                    <img src="<%= chat.user.profile_picture %>" alt="Profile" class="profile-pic">
+                    <span class="nickname-wrapper">
+                        <% if (chat.user.role === 'admin') { %>
+                            <span class="nickname admin-nametag">
+                                <%= chat.user.nickname %>
+                                <i class="bi bi-shield-shaded"></i>
+                            </span>
+                        <% } else { %>
+                            <span class="nickname" style="color: <%= chat.user.nametag_color %>;">
+                                <%= chat.user.nickname %>
+                            </span>
+                        <% } %>
+                        <% if (chat.user.is_online) { %>
+                            <span class="online-badge" title="Online">
+                                <i class="bi bi-circle-fill" style="font-size: 8px; color: #28a745;"></i>
+                            </span>
+                        <% } %>
+                    </span>
+                    <span class="timestamp ms-2">
+                        <i class="bi bi-clock"></i> <%= new Date(chat.created_at).toLocaleString() %>
+                        <% if (chat.updated_at > chat.created_at) { %>
+                            <span class="text-muted">(edited)</span>
+                        <% } %>
+                    </span>
+                </div>
+
+                <div class="message-content mt-2">
+                    <%= chat.message %>
+                </div>
+
+                <% if (chat.parent_chat_id) { %>
+                    <div class="text-muted small mt-1">
+                        <i class="bi bi-arrow-return-right"></i>
+                        Reply to message #<%= chat.parent_chat_id %>
+                    </div>
+                <% } %>
+
+                <div class="message-actions mt-2">
+                    <button class="btn btn-sm btn-link reply-btn" data-chat-id="<%= chat.id %>" data-nickname="<%= chat.user.nickname.replace(/"/g, '&quot;').replace(/'/g, '&#39;') %>">
+                        <i class="bi bi-reply"></i> Reply
+                    </button>
+
+                    <% if (chat.user_id === userId || role === 'admin') { %>
+                        <button class="btn btn-sm btn-link edit-btn" data-chat-id="<%= chat.id %>" data-message="<%= chat.message.replace(/\"/g,'&quot;').replace(/'/g,'&#39;') %>">
+                            <i class="bi bi-pencil"></i> Edit
+                        </button>
+                    <% } %>
+
+                    <% if (chat.user_id === userId || isForumCreator || role === 'admin') { %>
+                        <form action="/chat/delete/<%= chat.id %>" method="POST" class="d-inline" id="delete-form-<%= chat.id %>">
+                            <button type="button" class="btn btn-sm btn-link text-danger"
+                                    onclick="confirmDeleteMessage('<%= chat.id %>')">
+                                <i class="bi bi-trash"></i> Delete
+                            </button>
+                        </form>
+                    <% } %>
+
+                    <!-- Read Receipts -->
+                    <% if (isOwn) { %>
+                        <span class="read-receipt ms-2" title="Read by <%= readCount %> user(s)">
+                            <% if (readCount > 1) { %>
+                                <i class="bi bi-check2-all text-primary"></i> <%= readCount - 1 %>
+                            <% } else { %>
+                                <i class="bi bi-check2 text-muted"></i>
+                            <% } %>
+                        </span>
+                    <% } %>
+                </div>
+
+                <!-- Hidden edit form -->
+                <form id="edit-form-<%= chat.id %>" action="/chat/edit/<%= chat.id %>" method="POST" class="d-none">
+                    <input type="hidden" name="message" value="">
+                </form>
+            </div>
+
+            <!-- Render replies recursively -->
+            <% if (chat.replies && chat.replies.length > 0) { %>
+                <div class="replies-container">
+                    <% chat.replies.forEach(reply => { %>
+                        <% renderChat(reply, depth + 1); %>
+                    <% }); %>
+                </div>
+            <% } %>
+            <% } %>
+
+            <!-- Render all root chats -->
+            <% chats.forEach(chat => { %>
+                <% renderChat(chat, 0); %>
+            <% }); %>
+
+            <% if (chats.length === 0) { %>
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-chat-dots" style="font-size: 3rem;"></i>
+                    <p class="mt-2">No messages yet. Start the conversation!</p>
+                </div>
+            <% } %>
+        </div>
+
+        <!-- Send Message Form -->
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form action="/chat/forum/<%= forum.id %>/send" method="POST" id="sendMessageForm">
+                    <input type="hidden" name="parent_chat_id" id="parent_chat_id" value="">
+                    <div class="input-group">
+                        <input type="text" name="message" id="messageInput"
+                               class="form-control form-control-lg"
+                               placeholder="Type your message..." autocomplete="off" required>
+                        <button type="submit" class="btn btn-primary" id="sendBtn">
+                            <i class="bi bi-send"></i> Send
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Initialize Socket.io connection
+const forumId = document.getElementById('forum-id').value;
+const userId = document.getElementById('user-id').value;
+const socket = io({
+    auth: {
+        userId: userId
+    }
+});
+
+// Store online users
+let onlineUsersMap = new Map();
+
+// Typing timeout
+let typingTimeout = null;
+let isTyping = false;
+
+// Socket event listeners
+socket.on('connect', () => {
+    console.log('Connected to WebSocket server');
+    socket.emit('join-forum', forumId);
+});
+
+socket.on('disconnect', () => {
+    console.log('Disconnected from WebSocket server');
+});
+
+// Listen for new message
+socket.on('new-message', (message) => {
+    appendMessage(message, false);
+    scrollToBottom();
+    updateReadReceipts(message);
+});
+
+// Listen for message sent confirmation
+socket.on('message-sent', (message) => {
+    // Replace temporary message with actual message if exists
+    const tempMsg = document.querySelector('[data-temp-id]');
+    if (tempMsg) {
+        tempMsg.dataset.messageId = message.id;
+        tempMsg.removeAttribute('data-temp-id');
+    }
+    scrollToBottom();
+});
+
+// Listen for typing indicator
+socket.on('user-typing', (data) => {
+    updateTypingIndicator(data);
+});
+
+// Listen for online users update
+socket.on('online-users', (users) => {
+    updateOnlineUsers(users);
+});
+
+// Listen for read receipts
+socket.on('messages-read', (data) => {
+    updateReadReceiptsDisplay(data.messageIds, data.userId);
+});
+
+// Listen for message edited
+socket.on('message-edited', (data) => {
+    const messageEl = document.querySelector(`[data-message-id="${data.messageId}"] .message-content`);
+    if (messageEl) {
+        messageEl.textContent = data.message;
+        const timestamp = document.querySelector(`[data-message-id="${data.messageId}"] .timestamp`);
+        if (timestamp && !timestamp.querySelector('.text-muted')) {
+            timestamp.innerHTML += ' <span class="text-muted">(edited)</span>';
+        }
+    }
+});
+
+// Listen for message deleted
+socket.on('message-deleted', (data) => {
+    const messageEl = document.querySelector(`[data-message-id="${data.messageId}"]`);
+    if (messageEl) {
+        messageEl.style.transition = 'opacity 0.3s';
+        messageEl.style.opacity = '0';
+        setTimeout(() => messageEl.remove(), 300);
+    }
+});
+
+// Fungsi: Append new message to chat
+function appendMessage(message, isOwn = true) {
+    const chatContainer = document.getElementById('chatContainer');
+    const emptyState = chatContainer.querySelector('.text-center');
+    if (emptyState) emptyState.remove();
+
+    const messageHtml = `
+        <div class="chat-message ${isOwn ? 'own-message' : ''}" data-message-id="${message.id}">
+            <div class="message-header">
+                <img src="${message.user.profile_picture}" alt="Profile" class="profile-pic">
+                <span class="nickname-wrapper">
+                    <span class="nickname ${message.user.role === 'admin' ? 'admin-nametag' : ''}" 
+                          style="color: ${message.user.nametag_color}">
+                        ${message.user.nickname}
+                        ${message.user.role === 'admin' ? '<i class="bi bi-shield-shaded"></i>' : ''}
+                    </span>
+                </span>
+                <span class="timestamp ms-2">
+                    <i class="bi bi-clock"></i> ${new Date(message.created_at).toLocaleString()}
+                </span>
+            </div>
+            <div class="message-content mt-2">
+                ${message.message}
+            </div>
+            ${message.parent_chat_id ? `
+                <div class="text-muted small mt-1">
+                    <i class="bi bi-arrow-return-right"></i>
+                    Reply to message #${message.parent_chat_id}
+                </div>
+            ` : ''}
+            <div class="message-actions mt-2">
+                <button class="btn btn-sm btn-link reply-btn" data-chat-id="${message.id}" data-nickname="${message.user.nickname}">
+                    <i class="bi bi-reply"></i> Reply
+                </button>
+                ${message.user_id == userId ? `
+                    <button class="btn btn-sm btn-link edit-btn" data-chat-id="${message.id}" data-message="${message.message.replace(/"/g, '&quot;')}">
+                        <i class="bi bi-pencil"></i> Edit
+                    </button>
+                ` : ''}
+            </div>
+        </div>
+    `;
+
+    chatContainer.insertAdjacentHTML('beforeend', messageHtml);
+}
+
+// Fungsi: Update typing indicator
+function updateTypingIndicator(data) {
+    const typingIndicator = document.getElementById('typingIndicator');
+    const typingText = document.getElementById('typingText');
+    
+    if (data.isTyping) {
+        // Get user nickname from the DOM or cache
+        const userEl = document.querySelector(`.chat-message[data-user-id="${data.userId}"] .nickname`);
+        const nickname = userEl ? userEl.textContent.trim() : 'Someone';
+        
+        typingText.textContent = `${nickname} is typing...`;
+        typingIndicator.classList.remove('d-none');
+    } else {
+        typingIndicator.classList.add('d-none');
+    }
+}
+
+// Fungsi: Update online users list
+function updateOnlineUsers(users) {
+    const container = document.getElementById('onlineUsersList');
+    if (!users || users.length === 0) {
+        container.innerHTML = '<span class="badge bg-secondary">No users online</span>';
+    } else {
+        container.innerHTML = users.map(user => 
+            `<span class="badge bg-success me-1" title="${user.nickname}">
+                <i class="bi bi-person-circle"></i> ${user.nickname}
+            </span>`
+        ).join('');
+    }
+}
+
+// Fungsi: Update read receipts display
+function updateReadReceiptsDisplay(messageIds, userId) {
+    messageIds.forEach(msgId => {
+        const receiptEl = document.querySelector(`[data-message-id="${msgId}"] .read-receipt`);
+        if (receiptEl) {
+            const icon = receiptEl.querySelector('i');
+            const count = receiptEl.dataset.count || 1;
+            const newCount = parseInt(count) + 1;
+            receiptEl.dataset.count = newCount;
+            
+            if (icon) {
+                icon.className = 'bi bi-check2-all text-primary';
+                receiptEl.innerHTML = `<i class="bi bi-check2-all text-primary"></i> ${newCount - 1}`;
+            }
+        }
+    });
+}
+
+// Fungsi: Scroll to bottom
+function scrollToBottom() {
+    const container = document.getElementById('chatContainer');
+    if (container) {
+        setTimeout(() => {
+            container.scrollTop = container.scrollHeight;
+        }, 100);
+    }
+}
+
+// Fungsi: Load more messages
+async function loadMoreMessages() {
+    const btn = document.getElementById('loadMoreBtn');
+    const spinner = document.getElementById('loadMoreSpinner');
+    
+    btn.disabled = true;
+    spinner.classList.remove('d-none');
+    
+    try {
+        const currentMessages = document.querySelectorAll('.chat-message[data-message-id]').length;
+        const response = await fetch(`/chat/forum/${forumId}/messages?page=2&limit=50`);
+        const data = await response.json();
+        
+        if (data.success && data.messages.length > 0) {
+            const chatContainer = document.getElementById('chatContainer');
+            
+            // Prepend older messages at the top
+            data.messages.reverse().forEach(message => {
+                const existingMsg = document.querySelector(`[data-message-id="${message.id}"]`);
+                if (!existingMsg) {
+                    appendMessageToTop(message);
+                }
+            });
+            
+            // Update button
+            if (!data.hasMore) {
+                btn.innerHTML = '<i class="bi bi-check-circle"></i> All messages loaded';
+                btn.disabled = true;
+            } else {
+                spinner.classList.add('d-none');
+                btn.disabled = false;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading messages:', error);
+        spinner.classList.add('d-none');
+        btn.disabled = false;
+    }
+}
+
+function appendMessageToTop(message) {
+    const chatContainer = document.getElementById('chatContainer');
+    const firstMessage = chatContainer.querySelector('.chat-message');
+    
+    const messageHtml = `
+        <div class="chat-message" data-message-id="${message.id}">
+            <div class="message-header">
+                <img src="${message.user.profile_picture}" alt="Profile" class="profile-pic">
+                <span class="nickname-wrapper">
+                    <span class="nickname ${message.user.role === 'admin' ? 'admin-nametag' : ''}" 
+                          style="color: ${message.user.nametag_color}">
+                        ${message.user.nickname}
+                        ${message.user.role === 'admin' ? '<i class="bi bi-shield-shaded"></i>' : ''}
+                    </span>
+                </span>
+                <span class="timestamp ms-2">
+                    <i class="bi bi-clock"></i> ${new Date(message.created_at).toLocaleString()}
+                </span>
+            </div>
+            <div class="message-content mt-2">
+                ${message.message}
+            </div>
+        </div>
+    `;
+    
+    if (firstMessage) {
+        firstMessage.insertAdjacentHTML('beforebegin', messageHtml);
+    } else {
+        chatContainer.insertAdjacentHTML('beforeend', messageHtml);
+    }
+}
+
+// Fungsi: Reply to message
+function replyTo(chatId, nickname) {
+    document.getElementById('parent_chat_id').value = chatId;
+    document.getElementById('messageInput').placeholder = 'Replying to ' + nickname + '...';
+    document.getElementById('messageInput').focus();
+
+    const indicator = document.getElementById('replyIndicator');
+    document.getElementById('replyToName').textContent = nickname;
+    indicator.classList.remove('d-none');
+
+    document.getElementById('messageInput').scrollIntoView({ behavior: 'smooth' });
+}
+
+function cancelReply() {
+    document.getElementById('parent_chat_id').value = '';
+    document.getElementById('messageInput').placeholder = 'Type your message...';
+    document.getElementById('replyIndicator').classList.add('d-none');
+}
+
+// Fungsi: Edit message
+function editMessage(chatId, currentMessage) {
+    Swal.fire({
+        title: 'Edit Message',
+        input: 'textarea',
+        inputValue: currentMessage,
+        inputPlaceholder: 'Edit your message...',
+        inputAttributes: {
+            'aria-label': 'Edit message'
+        },
+        inputValidator: (value) => {
+            if (!value || !value.trim()) {
+                return 'Message cannot be empty!';
+            }
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Save Changes',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#0d6efd',
+        cancelButtonColor: '#6c757d'
+    }).then((result) => {
+        if (result.isConfirmed && result.value.trim() !== currentMessage) {
+            // Send via WebSocket
+            socket.emit('edit-message', {
+                forumId: forumId,
+                messageId: chatId,
+                message: result.value.trim()
+            });
+        }
+    });
+}
+
+// Fungsi: Search
+function highlightSearch() {
+    const searchQuery = document.getElementById('searchInput').value.toLowerCase().trim();
+    if (!searchQuery) {
+        clearSearch();
+        return;
+    }
+
+    document.querySelectorAll('.highlight').forEach(el => {
+        el.outerHTML = el.innerHTML;
+    });
+
+    const messages = document.querySelectorAll('.message-content');
+    let foundCount = 0;
+
+    messages.forEach(message => {
+        const originalHTML = message.innerHTML;
+        const textContent = message.textContent.toLowerCase();
+
+        if (textContent.includes(searchQuery)) {
+            const regex = new RegExp('(' + searchQuery + ')', 'gi');
+            message.innerHTML = originalHTML.replace(regex, '<span class="highlight">$1</span>');
+            foundCount++;
+        }
+    });
+
+    if (foundCount > 0) {
+        Swal.fire({
+            icon: 'success',
+            title: 'Search Results',
+            text: `Found ${foundCount} message(s) containing "${searchQuery}"`,
+            timer: 2000,
+            showConfirmButton: false
+        });
+    } else {
+        Swal.fire({
+            icon: 'info',
+            title: 'No Results',
+            text: `No messages found containing "${searchQuery}"`
+        });
+    }
+}
+
+function clearSearch() {
+    document.getElementById('searchInput').value = '';
+    document.querySelectorAll('.highlight').forEach(el => {
+        el.outerHTML = el.innerHTML;
+    });
+}
+
+// Fungsi: Delete message
+function confirmDeleteMessage(chatId) {
+    Swal.fire({
+        title: 'Delete Message?',
+        text: 'This action cannot be undone!',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, delete it',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Send via WebSocket
+            socket.emit('delete-message', {
+                forumId: forumId,
+                messageId: chatId
+            });
+        }
+    });
+}
+
+// Typing indicator on input
+let typingTimeoutSocket = null;
+document.getElementById('messageInput')?.addEventListener('input', function() {
+    if (!isTyping) {
+        isTyping = true;
+        socket.emit('typing', { forumId: forumId, isTyping: true });
+    }
+    
+    if (typingTimeoutSocket) {
+        clearTimeout(typingTimeoutSocket);
+    }
+    
+    typingTimeoutSocket = setTimeout(() => {
+        isTyping = false;
+        socket.emit('typing', { forumId: forumId, isTyping: false });
+    }, 3000);
+});
+
+// Handle form submit - send via WebSocket
+document.getElementById('sendMessageForm')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const messageInput = document.getElementById('messageInput');
+    const message = messageInput.value.trim();
+    const parentChatId = document.getElementById('parent_chat_id').value;
+    
+    if (!message) return;
+    
+    // Disable send button temporarily
+    const sendBtn = document.getElementById('sendBtn');
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending...';
+    
+    // Send via WebSocket
+    socket.emit('send-message', {
+        forumId: forumId,
+        message: message,
+        parentChatId: parentChatId || null
+    });
+    
+    // Clear input immediately for better UX
+    messageInput.value = '';
+    cancelReply();
+    
+    // Reset button after short delay
+    setTimeout(() => {
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = '<i class="bi bi-send"></i> Send';
+    }, 1000);
+    
+    // Stop typing indicator
+    isTyping = false;
+    socket.emit('typing', { forumId: forumId, isTyping: false });
+});
+
+// Delegate click events
+document.addEventListener('click', function(e) {
+    const replyBtn = e.target.closest('.reply-btn');
+    if (replyBtn) {
+        replyTo(replyBtn.dataset.chatId, replyBtn.dataset.nickname);
+    }
+    const editBtn = e.target.closest('.edit-btn');
+    if (editBtn) {
+        editMessage(editBtn.dataset.chatId, editBtn.dataset.message);
+    }
+});
+
+// Mark messages as read when scrolling
+let lastMarkedRead = 0;
+document.getElementById('chatContainer')?.addEventListener('scroll', function() {
+    const now = Date.now();
+    if (now - lastMarkedRead > 2000) { // Throttle to every 2 seconds
+        const visibleMessages = document.querySelectorAll('.chat-message[data-message-id]');
+        const messageIds = Array.from(visibleMessages).map(el => parseInt(el.dataset.messageId));
+        
+        if (messageIds.length > 0) {
+            socket.emit('mark-read', {
+                forumId: forumId,
+                messageIds: messageIds.slice(-20) // Mark last 20 visible messages
+            });
+        }
+        lastMarkedRead = now;
+    }
+});
+
+// Load on page load
+document.addEventListener('DOMContentLoaded', function() {
+    scrollToBottom();
+
+    // Auto-highlight if search query exists
+    const searchQuery = '<%= searchQuery %>';
+    if (searchQuery) {
+        setTimeout(highlightSearch, 500);
+    }
+    
+    // Mark all messages as read on page load
+    setTimeout(() => {
+        const messageIds = Array.from(document.querySelectorAll('.chat-message[data-message-id]'))
+            .map(el => parseInt(el.dataset.messageId));
+        if (messageIds.length > 0) {
+            socket.emit('mark-read', {
+                forumId: forumId,
+                messageIds: messageIds
+            });
+        }
+    }, 1000);
+});
+</script>
+
+<%- include('../partials/footer') %>

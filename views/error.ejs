@@ -1,0 +1,45 @@
+<%- include('partials/header') %>
+
+<div class="row justify-content-center">
+    <div class="col-md-6 text-center">
+        <div class="error-container">
+            <h1 class="display-1 text-muted">
+                <i class="bi bi-exclamation-triangle"></i>
+            </h1>
+            <h2 class="mb-4">Oops! Something went wrong</h2>
+            <p class="lead mb-4"><%= message %></p>
+            
+            <% if (error && Object.keys(error).length > 0) { %>
+                <div class="alert alert-danger text-start">
+                    <pre class="mb-0"><%= JSON.stringify(error, null, 2) %></pre>
+                </div>
+            <% } %>
+            
+            <a href="/" class="btn btn-primary">
+                <i class="bi bi-house"></i> Go Home
+            </a>
+            <button onclick="history.back()" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Go Back
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+.error-container {
+    padding: 50px 20px;
+    animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.pre {
+    max-height: 300px;
+    overflow-y: auto;
+}
+</style>
+
+<%- include('partials/footer') %>

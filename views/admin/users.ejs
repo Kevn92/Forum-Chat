@@ -1,0 +1,205 @@
+<%- include('../partials/header') %>
+
+<div class="container-fluid admin-panel-container">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="admin-title"><i class="bi bi-shield-lock"></i> Admin Panel - User Management</h2>
+                <a href="/forums" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to Forums
+                </a>
+            </div>
+
+            <% if (typeof success !== 'undefined' && success) { %>
+                <div class="alert alert-success alert-dismissible fade show">
+                    <i class="bi bi-check-circle"></i> <%= success %>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <% } %>
+
+            <% if (typeof error !== 'undefined' && error) { %>
+                <div class="alert alert-danger alert-dismissible fade show">
+                    <i class="bi bi-exclamation-triangle"></i> <%= error %>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <% } %>
+
+            <!-- Users Table -->
+            <div class="card shadow admin-card">
+                <div class="card-header admin-card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-people"></i> All Users (<%= users.length %>)</h5>
+                        <form action="/admin/users" method="GET" class="d-flex">
+                            <div class="input-group input-group-sm">
+                                <input type="text" class="form-control" name="search"
+                                       placeholder="Search by username, nickname, or phone..."
+                                       value="<%= typeof search !== 'undefined' ? search || '' : '' %>">
+                                <button class="btn btn-light" type="submit">
+                                    <i class="bi bi-search"></i> Search
+                                </button>
+                                <% if (typeof search !== 'undefined' && search) { %>
+                                    <a href="/admin/users" class="btn btn-outline-light">
+                                        <i class="bi bi-x-circle"></i> Clear
+                                    </a>
+                                <% } %>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped mb-0 admin-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Username</th>
+                                    <th>Nickname</th>
+                                    <th>Phone</th>
+                                    <th>Role</th>
+                                    <th>Forums</th>
+                                    <th>Messages</th>
+                                    <th>Joined</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% if (users.length === 0) { %>
+                                    <tr>
+                                        <td colspan="9" class="text-center text-muted py-4">
+                                            <i class="bi bi-search" style="font-size: 2rem;"></i>
+                                            <p class="mt-2">No users found matching "<%= search %>"</p>
+                                        </td>
+                                    </tr>
+                                <% } %>
+
+                                <% users.forEach((user, index) => { %>
+                                    <tr class="<%= user.id === userId ? 'table-primary' : '' %> <%= search && index < 3 ? 'table-warning' : '' %>">
+                                        <td><%= user.id %></td>
+                                        <td>
+                                            <img src="<%= user.profile_picture || '/images/default-profile.png' %>" alt="Profile"
+                                                 class="rounded-circle me-2 admin-profile-pic" style="width: 30px; height: 30px; object-fit: cover;">
+                                            <strong class="searchable username-text"><%= user.username || 'No Username' %></strong>
+                                            <% if (user.id === userId) { %>
+                                                <span class="badge bg-info">You</span>
+                                            <% } %>
+                                        </td>
+                                        <td>
+                                            <span class="nickname-text searchable" style="color: <%= user.nametag_color || 'var(--text-primary)' %>; font-weight: 500;">
+                                                <%= user.nickname || user.username || 'N/A' %>
+                                            </span>
+                                        </td>
+                                        <td class="searchable phone-text"><%= user.phone || '-' %></td>
+                                        <td>
+                                            <span class="badge bg-<%= user.role === 'admin' ? 'danger' : 'primary' %>">
+                                                <i class="bi bi-<%= user.role === 'admin' ? 'shield' : 'person' %>"></i>
+                                                <%= user.role %>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info"><%= user.forumCount %></span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-success"><%= user.messageCount %></span>
+                                        </td>
+                                        <td>
+                                            <small class="joined-date"><%= new Date(user.created_at).toLocaleDateString('id-ID') %></small>
+                                        </td>
+                                        <td>
+                                            <% if (user.id !== userId) { %>
+                                                <button class="btn btn-sm btn-danger"
+                                                        onclick="confirmDeleteUser('<%- user.username.replace(/'/g, "\\'") %>', <%= user.id %>)">
+                                                    <i class="bi bi-trash"></i> Delete
+                                                </button>
+                                                <form id="delete-user-form-<%= user.id %>"
+                                                      action="/admin/users/delete/<%= user.id %>"
+                                                      method="POST" class="d-none">
+                                                </form>
+                                            <% } else { %>
+                                                <span class="text-muted small">-</span>
+                                            <% } %>
+                                        </td>
+                                    </tr>
+                                <% }) %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="row mt-4">
+                <div class="col-md-4">
+                    <div class="card shadow-sm admin-stat-card">
+                        <div class="card-body text-center">
+                            <h3 class="admin-stat-number text-primary"><%= users.length %></h3>
+                            <p class="admin-stat-label mb-0">Total Users</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card shadow-sm admin-stat-card">
+                        <div class="card-body text-center">
+                            <h3 class="admin-stat-number text-success"><%= users.filter(u => u.role === 'user').length %></h3>
+                            <p class="admin-stat-label mb-0">Regular Users</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card shadow-sm admin-stat-card">
+                        <div class="card-body text-center">
+                            <h3 class="admin-stat-number text-danger"><%= users.filter(u => u.role === 'admin').length %></h3>
+                            <p class="admin-stat-label mb-0">Admins</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function confirmDeleteUser(username, userId) {
+    Swal.fire({
+        title: 'Delete User?',
+        html: `Are you sure you want to delete user <strong>"${username}"</strong>?<br><br>
+               <div class="text-start">
+               This will permanently delete:<br>
+               • The user account<br>
+               • All messages by this user<br>
+               • All forums created by this user<br><br>
+               <span class="text-danger fw-bold">This action cannot be undone!</span>
+               </div>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, delete user',
+        cancelButtonText: 'Cancel',
+        background: document.body.classList.contains('theme-dark') ? '#2d2d2d' : '#ffffff',
+        color: document.body.classList.contains('theme-dark') ? '#ffffff' : '#1f2937'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            document.getElementById('delete-user-form-' + userId).submit();
+        }
+    });
+}
+
+function highlightText(text, search) {
+    if (!search || !text) return text;
+    var regex = new RegExp('(' + search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    return text.toString().replace(regex, '<mark class="bg-warning text-dark">$1</mark>');
+}
+
+// Auto-highlight search results on page load
+document.addEventListener('DOMContentLoaded', function() {
+    var search = '<%= search %>';
+    if (search) {
+        var cells = document.querySelectorAll('.searchable');
+        cells.forEach(function(cell) {
+            cell.innerHTML = highlightText(cell.textContent, search);
+        });
+    }
+});
+</script>
+
+<%- include('../partials/footer') %>

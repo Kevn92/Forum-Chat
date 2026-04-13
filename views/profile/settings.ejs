@@ -1,0 +1,267 @@
+<%- include('../partials/header') %>
+
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="bi bi-gear"></i> Profile Settings</h4>
+            </div>
+            <div class="card-body">
+                <% if (typeof error !== 'undefined' && error) { %>
+                    <div class="alert alert-danger"><%= error %></div>
+                <% } %>
+                <% if (typeof success !== 'undefined' && success) { %>
+                    <div class="alert alert-success"><%= success %></div>
+                <% } %>
+                <!-- Profile Picture -->
+                <div class="text-center mb-4">
+                    <img src="<%= user.profile_picture %>" alt="Profile" 
+                         class="rounded-circle img-thumbnail" 
+                         style="width: 150px; height: 150px; object-fit: cover;" id="profilePreview">
+                    <p class="text-muted mt-2">
+                        <i class="bi bi-info-circle"></i> 
+                        You can upload a custom profile picture
+                    </p>
+                </div>
+                
+                <form action="/profile/update" method="POST" enctype="multipart/form-data">
+                    <!-- Profile Picture Upload -->
+                    <% if (user.role !== 'admin') { %>
+                        <div class="mb-3">
+                            <label for="profile_picture" class="form-label">
+                                <i class="bi bi-image"></i> Upload Profile Picture
+                            </label>
+                            <input type="file" class="form-control" id="profile_picture" name="profile_picture" 
+                                   accept="image/*" onchange="previewImage(event)">
+                            <div class="form-text">Max 5MB. Supported: JPG, PNG, GIF</div>
+                        </div>
+                    <% } %>
+                    
+                    <!-- Username (readonly) -->
+                    <div class="mb-3">
+                        <label class="form-label">
+                            <i class="bi bi-person"></i> Username
+                        </label>
+                        <input type="text" class="form-control" value="<%= user.username %>" readonly disabled>
+                        <div class="form-text">Username cannot be changed</div>
+                    </div>
+                    
+                    <!-- Phone Number -->
+                    <div class="mb-3">
+                        <label for="phone" class="form-label">
+                            <i class="bi bi-telephone"></i> Phone Number
+                        </label>
+                        <input type="tel" class="form-control" id="phone" name="phone" 
+                               value="<%= user.phone %>" required>
+                    </div>
+                    
+                    <% if (user.role !== 'admin') { %>
+                        <!-- Nickname (editable for non-admin) -->
+                        <div class="mb-3">
+                            <label for="nickname" class="form-label">
+                                <i class="bi bi-tag"></i> Nickname
+                            </label>
+                            <input type="text" class="form-control" id="nickname" name="nickname" 
+                                   value="<%= user.nickname %>" required>
+                            <div class="form-text">This name will be displayed in chat</div>
+                        </div>
+
+                        <!-- Change Password -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="bi bi-key"></i> Change Password
+                            </label>
+                            <input type="password" class="form-control mb-2" id="old_password" name="old_password" placeholder="Put ur Old Password">
+                            <input type="password" class="form-control" id="new_password" name="new_password" placeholder="Put ur New Password">
+                            <div class="form-text">Kosongkan jika tidak ingin merubah password.</div>
+                        </div>
+                        
+                        <!-- Nametag Color (editable for non-admin) -->
+                        <div class="mb-3">
+                            <label for="nametag_color" class="form-label">
+                                <i class="bi bi-palette"></i> Nametag Color
+                            </label>
+                            <div class="d-flex align-items-center">
+                                <input type="color" class="form-control form-control-color me-2" 
+                                       id="nametag_color" name="nametag_color" 
+                                       value="<%= user.nametag_color %>" 
+                                       style="width: 60px; height: 40px;">
+                                <span class="badge" <%= 'style="background-color: ' + user.nametag_color + '; color: white; padding: 8px 15px;"' %>>
+                                    Preview
+                                </span>
+                            </div>
+                        </div>
+                    <% } else { %>
+                        <!-- Admin info (readonly) -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="bi bi-tag"></i> Nickname
+                            </label>
+                            <input type="text" class="form-control" value="<%= user.nickname %>" readonly disabled>
+                            <div class="form-text text-warning">
+                                <i class="bi bi-shield"></i> Admin nickname cannot be changed
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="bi bi-palette"></i> Nametag Style
+                            </label>
+                            <div class="p-3 bg-dark text-white rounded" style="text-shadow: 0 0 10px white; display: inline-block;">
+                                <i class="bi bi-shield"></i> Admin Nametag (Fixed Glow Effect)
+                            </div>
+                            <div class="form-text">
+                                <i class="bi bi-info-circle"></i> 
+                                Dark mode: Black with white glow | Light mode: White with black glow
+                            </div>
+                        </div>
+                    <% } %>
+                    
+                    <!-- Theme Selection -->
+                    <div class="mb-4">
+                        <label class="form-label">
+                            <i class="bi bi-brightness-high"></i> Theme
+                        </label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="theme" id="themeLight" 
+                                   value="light" <%= user.theme === 'light' ? 'checked' : '' %>>
+                            <label class="btn btn-outline-primary" for="themeLight">
+                                <i class="bi bi-sun"></i> Light
+                            </label>
+                            
+                            <input type="radio" class="btn-check" name="theme" id="themeDark" 
+                                   value="dark" <%= user.theme === 'dark' ? 'checked' : '' %>>
+                            <label class="btn btn-outline-primary" for="themeDark">
+                                <i class="bi bi-moon"></i> Dark
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <!-- Submit Button -->
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-check-circle"></i> Update Profile
+                        </button>
+                    </div>
+                </form>
+
+                <% if (user.role !== 'admin') { %>
+                    <hr class="my-4">
+                    
+                    <!-- Danger Zone -->
+                    <div class="card border-danger">
+                        <div class="card-header bg-danger text-white">
+                            <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Danger Zone</h5>
+                        </div>
+                        <div class="card-body">
+                            <h6 class="text-danger">Delete Account</h6>
+                            <p class="text-muted small">
+                                Once you delete your account, there is no going back. This will permanently delete:
+                            </p>
+                            <ul class="text-muted small">
+                                <li>Your account and profile data</li>
+                                <li>All messages you've sent</li>
+                                <li>All forums you've created (and their messages)</li>
+                            </ul>
+                            <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteAccountModal">
+                                <i class="bi bi-trash"></i> Delete My Account
+                            </button>
+                        </div>
+                    </div>
+                <% } %>
+            </div>
+        </div>
+
+        <!-- Account Info Card -->
+        <div class="card mt-3 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-info-circle"></i> Account Information
+                </h5>
+                <table class="table table-sm">
+                    <tr>
+                        <th>Role:</th>
+                        <td>
+                            <span class="badge bg-<%= user.role === 'admin' ? 'danger' : 'primary' %>">
+                                <i class="bi bi-<%= user.role === 'admin' ? 'shield' : 'person' %>"></i>
+                                <%= user.role %>
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Member since:</th>
+                        <td><i class="bi bi-calendar"></i> <%= new Date(user.created_at).toLocaleDateString('id-ID', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                        }) %></td>
+                    </tr>
+                    <tr>
+                        <th>Last updated:</th>
+                        <td><i class="bi bi-clock"></i> <%= new Date().toLocaleString() %></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Account Modal -->
+<div class="modal fade" id="deleteAccountModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Confirm Account Deletion</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/profile/delete" method="POST">
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        <strong>Warning:</strong> This action cannot be undone!
+                    </div>
+                    <p class="mb-3">
+                        Are you sure you want to delete your account? This will permanently remove:
+                    </p>
+                    <ul class="mb-3">
+                        <li>Your account (<strong><%= user.username %></strong>)</li>
+                        <li>All your messages</li>
+                        <li>All forums you created</li>
+                    </ul>
+                    <div class="mb-3">
+                        <label for="deletePassword" class="form-label">
+                            Enter your password to confirm:
+                        </label>
+                        <input type="password" class="form-control" id="deletePassword" name="password" 
+                               placeholder="Enter your password" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> Cancel
+                    </button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Delete My Account Permanently
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function previewImage(event) {
+    const file = event.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('profilePreview').src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+}
+</script>
+
+<%- include('../partials/footer') %>

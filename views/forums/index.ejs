@@ -1,0 +1,143 @@
+<%- include('../partials/header') %>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="bi bi-list"></i> Forum List</h2>
+            <span class="badge bg-primary">Total: <%= forums.length %></span>
+        </div>
+        
+        <!-- Create Forum Form -->
+        <div class="card mb-4 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-plus-circle"></i> Create New Forum
+                </h5>
+                <form action="/forums/create" method="POST">
+                    <div class="input-group">
+                        <input type="text" name="title" class="form-control" 
+                               placeholder="Enter forum title..." required>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-plus"></i> Create
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Forum List -->
+        <div class="forum-list">
+            <% if (forums.length === 0) { %>
+                <div class="alert alert-info text-center">
+                    <i class="bi bi-info-circle"></i> No forums yet. Create one!
+                </div>
+            <% } %>
+            
+            <% forums.forEach(forum => { %>
+                <div class="forum-card mb-3 <%= forum.hasUnread ? 'forum-unread' : '' %>">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="flex-grow-1">
+                            <h4 class="mb-1">
+                                <a href="/chat/forum/<%= forum.id %>" class="text-decoration-none" onclick="markAsRead(<%= forum.id %>)">
+                                    <% if (forum.hasUnread) { %>
+                                        <i class="bi bi-circle-fill text-primary unread-dot"></i>
+                                    <% } %>
+                                    <i class="bi bi-chat"></i> <%= forum.title %>
+                                </a>
+                            </h4>
+                            <small class="text-muted">
+                                <i class="bi bi-person"></i> Created by: <%= forum.creator ? forum.creator.nickname : 'Unknown' %> |
+                                <i class="bi bi-clock"></i> <%= new Date(forum.created_at).toLocaleString() %>
+                            </small>
+                        </div>
+
+                        <div class="d-flex align-items-center gap-2">
+                            <% if (forum.hasUnread) { %>
+                                <span class="badge bg-primary unread-badge">
+                                    <%= forum.displayUnread %>
+                                </span>
+                            <% } %>
+
+                            <% if (forum.creator_id === userId || role === 'admin') { %>
+                                <form action="/forums/delete/<%= forum.id %>" method="POST"
+                                      id="delete-forum-form-<%= forum.id %>">
+                                    <button type="button" class="btn btn-danger btn-sm"
+                                            onclick="confirmDeleteForum('<%= forum.id %>', '<%= (forum.title || 'Forum').replace(/'/g, "\\'") %>')">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </form>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            <% }) %>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-info-circle"></i> Information
+                </h5>
+                <hr>
+                <p><i class="bi bi-person"></i> Welcome, <strong><%= locals.userId ? 'User' : 'Guest' %></strong></p>
+                <p><i class="bi bi-shield"></i> Role: <span class="badge bg-<%= role === 'admin' ? 'danger' : 'primary' %>"><%= role %></span></p>
+                <p><i class="bi bi-chat"></i> Total Forums: <strong><%= forums.length %></strong></p>
+                <hr>
+                <h6>Quick Tips:</h6>
+                <ul class="small">
+                    <li>Click forum title to enter</li>
+                    <li>You can delete your own forums</li>
+                    <li>Admin can delete any forum</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function markAsRead(forumId) {
+    try {
+        await fetch(`/chat/forum/${forumId}/mark-read`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        // Remove unread indicator immediately
+        const forumCard = document.querySelector(`[onclick="markAsRead(${forumId})"]`).closest('.forum-card');
+        forumCard.classList.remove('forum-unread');
+        const badge = forumCard.querySelector('.unread-badge');
+        if (badge) badge.remove();
+        const dot = forumCard.querySelector('.unread-dot');
+        if (dot) dot.remove();
+    } catch (error) {
+        console.error('Error marking as read:', error);
+    }
+}
+
+// Confirm delete forum with SweetAlert2
+function confirmDeleteForum(forumId, forumName) {
+    Swal.fire({
+        title: 'Delete Forum?',
+        html: `Are you sure you want to delete <strong>${forumName}</strong>?<br><br>
+               <span class="text-danger">All messages will be lost and this action cannot be undone!</span>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, delete it',
+        cancelButtonText: 'Cancel',
+        background: document.body.classList.contains('theme-dark') ? '#2d2d2d' : '#ffffff',
+        color: document.body.classList.contains('theme-dark') ? '#ffffff' : '#1f2937'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            document.getElementById('delete-forum-form-' + forumId).submit();
+        }
+    });
+}
+</script>
+
+<%- include('../partials/footer') %>
