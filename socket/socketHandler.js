@@ -258,6 +258,48 @@ function initializeSocket(io) {
 
       broadcastOnlineUsers(io);
     });
+
+    // Handle new poll creation
+    socket.on('new-poll', async (data) => {
+      try {
+        const { forumId, poll } = data;
+        
+        // Broadcast to others in the same forum
+        socket.to(`forum-${forumId}`).emit('poll-created', {
+          poll: poll
+        });
+      } catch (error) {
+        console.error('Error broadcasting poll creation:', error);
+      }
+    });
+
+    // Handle poll vote
+    socket.on('poll-voted', async (data) => {
+      try {
+        const { forumId, poll } = data;
+        
+        // Broadcast to others in the same forum
+        socket.to(`forum-${forumId}`).emit('poll-vote-updated', {
+          poll: poll
+        });
+      } catch (error) {
+        console.error('Error broadcasting poll vote:', error);
+      }
+    });
+
+    // Handle poll close
+    socket.on('poll-closed', async (data) => {
+      try {
+        const { forumId, pollId } = data;
+        
+        // Broadcast to others in the same forum
+        socket.to(`forum-${forumId}`).emit('poll-closed', {
+          pollId: pollId
+        });
+      } catch (error) {
+        console.error('Error broadcasting poll close:', error);
+      }
+    });
   });
 }
 

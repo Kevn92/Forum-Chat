@@ -2,6 +2,7 @@
 
 <input type="hidden" id="forum-id" value="<%= forum.id %>">
 <input type="hidden" id="user-id" value="<%= userId %>">
+<input type="hidden" id="forum-creator-id" value="<%= forum.creator_id %>">
 
 <!-- Socket.io Client -->
 <script src="/socket.io/socket.io.js"></script>
@@ -60,6 +61,60 @@
         <div id="typingIndicator" class="text-muted small ms-2 mb-2 d-none">
             <i class="bi bi-pencil-square"></i> <span id="typingText"></span>
         </div>
+
+        <!-- Active Polls Section -->
+        <% 
+        if (typeof polls === 'undefined') polls = [];
+        %>
+        <% if (polls && polls.length > 0) { %>
+        <div id="pollsContainer" class="mb-3">
+            <% polls.forEach(function(poll) { 
+               var totalVotes = 0;
+               if (Array.isArray(poll.options)) {
+                 totalVotes = poll.options.reduce(function(sum, opt) {
+                   return sum + (typeof opt.votes === 'number' ? opt.votes : 0);
+                 }, 0);
+               }
+            %>
+            <div class="card shadow-sm poll-card" data-poll-id="<%= poll.id %>">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="poll-question mb-0">
+                            <i class="bi bi-bar-chart"></i> <%= poll.question %>
+                        </h6>
+                    </div>
+                    <small class="text-muted">
+                        Poll ID: <%= poll.id %> | Options: <%= poll.options ? poll.options.length : 0 %>
+                    </small>
+
+                    <div class="poll-options mt-3">
+                        <% if (poll.options && Array.isArray(poll.options)) { 
+                             poll.options.forEach(function(option) { 
+                               var optVotes = (typeof option.votes === 'number') ? option.votes : 0;
+                               var percentage = totalVotes > 0 ? ((optVotes / totalVotes) * 100).toFixed(1) : '0.0';
+                        %>
+                            <div class="poll-option-item" data-option-id="<%= option.id %>">
+                                <div class="poll-option-header">
+                                    <span class="poll-option-text"><%= option.text %></span>
+                                    <span class="poll-option-votes"><%= optVotes %> votes (<%= percentage %>%)</span>
+                                </div>
+                                <div class="poll-progress-bar">
+                                    <div class="poll-progress-fill" style="width: <%= percentage %>%"></div>
+                                </div>
+                            </div>
+                        <% }); } %>
+                    </div>
+
+                    <div class="poll-footer mt-2">
+                        <small class="text-muted">
+                            <i class="bi bi-people"></i> Total: <%= totalVotes %> votes
+                        </small>
+                    </div>
+                </div>
+            </div>
+            <% }); %>
+        </div>
+        <% } %>
 
         <!-- Load More Messages Button -->
         <% if (hasMore) { %>
@@ -133,7 +188,7 @@
                         <i class="bi bi-reply"></i> Reply
                     </button>
 
-                    <% if (chat.user_id === userId || role === 'admin') { %>
+                    <% if (chat.user_id === userId || isForumCreator) { %>
                         <button class="btn btn-sm btn-link edit-btn" data-chat-id="<%= chat.id %>" data-message="<%= chat.message.replace(/\"/g,'&quot;').replace(/'/g,'&#39;') %>">
                             <i class="bi bi-pencil"></i> Edit
                         </button>
@@ -198,6 +253,9 @@
                         <input type="text" name="message" id="messageInput"
                                class="form-control form-control-lg"
                                placeholder="Type your message..." autocomplete="off" required>
+                        <button type="button" class="btn btn-success" id="createPollBtn" title="Create Poll">
+                            <i class="bi bi-plus-circle"></i>
+                        </button>
                         <button type="submit" class="btn btn-primary" id="sendBtn">
                             <i class="bi bi-send"></i> Send
                         </button>
@@ -208,10 +266,59 @@
     </div>
 </div>
 
+<!-- Create Poll Modal -->
+<div class="modal fade" id="createPollModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content poll-modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-bar-chart"></i> Create Poll</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="createPollForm">
+                    <div class="mb-3">
+                        <label for="pollQuestion" class="form-label">Question</label>
+                        <input type="text" class="form-control" id="pollQuestion" 
+                               placeholder="What do you want to ask?" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Options</label>
+                        <div id="pollOptionsContainer">
+                            <div class="input-group mb-2 poll-option-input">
+                                <span class="input-group-text">1</span>
+                                <input type="text" class="form-control poll-option" 
+                                       placeholder="Option 1" required>
+                            </div>
+                            <div class="input-group mb-2 poll-option-input">
+                                <span class="input-group-text">2</span>
+                                <input type="text" class="form-control poll-option" 
+                                       placeholder="Option 2" required>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="addPollOptionBtn">
+                            <i class="bi bi-plus"></i> Add Option
+                        </button>
+                        <small class="text-muted d-block mt-2">
+                            Minimum 2 options, maximum 10 options
+                        </small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="submitPollBtn">
+                    <i class="bi bi-check-circle"></i> Create Poll
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // Initialize Socket.io connection
 const forumId = document.getElementById('forum-id').value;
 const userId = document.getElementById('user-id').value;
+const forumCreatorId = document.getElementById('forum-creator-id').value;
 const socket = io({
     auth: {
         userId: userId
@@ -324,7 +431,7 @@ function appendMessage(message, isOwn = true) {
                 <button class="btn btn-sm btn-link reply-btn" data-chat-id="${message.id}" data-nickname="${message.user.nickname}">
                     <i class="bi bi-reply"></i> Reply
                 </button>
-                ${message.user_id == userId ? `
+                ${(message.user_id == userId || userId == forumCreatorId) ? `
                     <button class="btn btn-sm btn-link edit-btn" data-chat-id="${message.id}" data-message="${message.message.replace(/"/g, '&quot;')}">
                         <i class="bi bi-pencil"></i> Edit
                     </button>
@@ -456,6 +563,16 @@ function appendMessageToTop(message) {
             </div>
             <div class="message-content mt-2">
                 ${message.message}
+            </div>
+            <div class="message-actions mt-2">
+                <button class="btn btn-sm btn-link reply-btn" data-chat-id="${message.id}" data-nickname="${message.user.nickname}">
+                    <i class="bi bi-reply"></i> Reply
+                </button>
+                ${(message.user_id == userId || userId == forumCreatorId) ? `
+                    <button class="btn btn-sm btn-link edit-btn" data-chat-id="${message.id}" data-message="${message.message.replace(/"/g, '&quot;')}">
+                        <i class="bi bi-pencil"></i> Edit
+                    </button>
+                ` : ''}
             </div>
         </div>
     `;
@@ -675,8 +792,430 @@ document.getElementById('chatContainer')?.addEventListener('scroll', function() 
     }
 });
 
+// ========================================
+// Poll Functionality
+// ========================================
+
+// Open poll creation modal
+document.getElementById('createPollBtn')?.addEventListener('click', function() {
+    const pollModal = new bootstrap.Modal(document.getElementById('createPollModal'));
+    pollModal.show();
+});
+
+// Add poll option
+document.getElementById('addPollOptionBtn')?.addEventListener('click', function() {
+    const container = document.getElementById('pollOptionsContainer');
+    const optionCount = container.querySelectorAll('.poll-option-input').length + 1;
+    
+    if (optionCount > 10) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Maximum Options',
+            text: 'Poll cannot have more than 10 options',
+            confirmButtonColor: '#0d6efd'
+        });
+        return;
+    }
+
+    const optionHtml = `
+        <div class="input-group mb-2 poll-option-input">
+            <span class="input-group-text">${optionCount}</span>
+            <input type="text" class="form-control poll-option" 
+                   placeholder="Option ${optionCount}" required>
+            <button type="button" class="btn btn-outline-danger btn-sm remove-option">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+    `;
+    
+    container.insertAdjacentHTML('beforeend', optionHtml);
+});
+
+// Remove poll option
+document.getElementById('pollOptionsContainer')?.addEventListener('click', function(e) {
+    const removeBtn = e.target.closest('.remove-option');
+    if (removeBtn) {
+        const container = document.getElementById('pollOptionsContainer');
+        const optionCount = container.querySelectorAll('.poll-option-input').length;
+        
+        if (optionCount <= 2) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Minimum Options',
+                text: 'Poll must have at least 2 options',
+                confirmButtonColor: '#0d6efd'
+            });
+            return;
+        }
+        
+        removeBtn.closest('.poll-option-input').remove();
+        
+        // Re-number options
+        container.querySelectorAll('.poll-option-input').forEach((el, index) => {
+            el.querySelector('.input-group-text').textContent = index + 1;
+            el.querySelector('.poll-option').placeholder = `Option ${index + 1}`;
+        });
+    }
+});
+
+// Submit poll
+document.getElementById('submitPollBtn')?.addEventListener('click', async function() {
+    const question = document.getElementById('pollQuestion').value.trim();
+    const options = Array.from(document.querySelectorAll('.poll-option'))
+        .map(input => input.value.trim())
+        .filter(val => val !== '');
+
+    if (!question) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Missing Question',
+            text: 'Please enter a poll question',
+            confirmButtonColor: '#0d6efd'
+        });
+        return;
+    }
+
+    if (options.length < 2) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Missing Options',
+            text: 'Poll must have at least 2 options',
+            confirmButtonColor: '#0d6efd'
+        });
+        return;
+    }
+
+    try {
+        const submitBtn = document.getElementById('submitPollBtn');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Creating...';
+
+        console.log('Sending poll data:', { question, options });
+
+        const response = await fetch(`/chat/forum/${forumId}/poll/create`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ question: question, options: options })
+        });
+
+        const data = await response.json();
+        console.log('Poll response:', data);
+
+        if (data.success) {
+            console.log('✅ Poll created successfully, reloading page...');
+
+            // Close modal
+            const pollModal = bootstrap.Modal.getInstance(document.getElementById('createPollModal'));
+            if (pollModal) pollModal.hide();
+
+            // Show brief success then reload
+            Swal.fire({
+                icon: 'success',
+                title: 'Poll Created',
+                text: 'Your poll has been created successfully',
+                timer: 1000,
+                showConfirmButton: false,
+                allowOutsideClick: false
+            });
+
+            // Reload page after Swal finishes
+            setTimeout(() => {
+                window.location.reload();
+            }, 1100);
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: data.error || 'Failed to create poll',
+                confirmButtonColor: '#0d6efd'
+            });
+        }
+    } catch (error) {
+        console.error('❌ Error creating poll:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: error.message || 'Failed to create poll',
+            confirmButtonColor: '#0d6efd'
+        });
+    } finally {
+        const submitBtn = document.getElementById('submitPollBtn');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> Create Poll';
+    }
+});
+
+// Vote on poll
+document.getElementById('pollsContainer')?.addEventListener('click', async function(e) {
+    console.log('🖱️ Clicked element:', e.target.tagName, e.target.className);
+    console.log('🖱️ e.target.closest(.poll-option-item):', e.target.closest('.poll-option-item'));
+    console.log('🖱️ e.target.closest(.poll-option-item:not(.voted)):', e.target.closest('.poll-option-item:not(.voted)'));
+    
+    let optionItem = e.target.closest('.poll-option-item');
+    if (!optionItem) {
+        console.log('❌ No .poll-option-item found');
+        return;
+    }
+    
+    if (optionItem.classList.contains('voted')) {
+        console.log('❌ Already voted for this option');
+        return;
+    }
+
+    const pollCard = e.target.closest('.poll-card');
+    const pollId = pollCard?.dataset?.pollId;
+    const optionId = optionItem.dataset.optionId;
+
+    console.log('📝 Voting:', { pollId, optionId, forumId });
+
+    if (!pollId || !optionId || !forumId) {
+        console.log('❌ Missing data:', { pollId, optionId, forumId });
+        return;
+    }
+
+    try {
+        optionItem.style.opacity = '0.5';
+        optionItem.style.pointerEvents = 'none';
+
+        const response = await fetch(`/chat/forum/${forumId}/poll/vote`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ pollId: parseInt(pollId), optionId: parseInt(optionId) })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Broadcast poll vote via socket
+            socket.emit('poll-voted', {
+                forumId: forumId,
+                poll: data.poll
+            });
+        } else {
+            optionItem.style.opacity = '1';
+            optionItem.style.pointerEvents = 'auto';
+
+            Swal.fire({
+                icon: 'warning',
+                title: 'Vote Failed',
+                text: data.error || 'Failed to vote',
+                confirmButtonColor: '#0d6efd'
+            });
+        }
+    } catch (error) {
+        console.error('Error voting:', error);
+        optionItem.style.opacity = '1';
+        optionItem.style.pointerEvents = 'auto';
+
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Failed to vote',
+            confirmButtonColor: '#0d6efd'
+        });
+    }
+});
+
+// Close poll
+document.getElementById('pollsContainer')?.addEventListener('click', async function(e) {
+    const closeBtn = e.target.closest('.btn-close-poll');
+    if (!closeBtn) return;
+
+    const pollId = closeBtn.dataset.pollId;
+
+    const result = await Swal.fire({
+        title: 'Close Poll?',
+        text: 'This will stop the poll from accepting new votes',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, close it',
+        cancelButtonText: 'Cancel'
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+        const response = await fetch(`/chat/poll/${pollId}/close`, {
+            method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Broadcast poll closed via socket
+            socket.emit('poll-closed', {
+                forumId: forumId,
+                pollId: parseInt(pollId)
+            });
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Poll Closed',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: data.error || 'Failed to close poll',
+                confirmButtonColor: '#0d6efd'
+            });
+        }
+    } catch (error) {
+        console.error('Error closing poll:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Failed to close poll',
+            confirmButtonColor: '#0d6efd'
+        });
+    }
+});
+
+// Socket listeners for polls
+socket.on('poll-created', function(data) {
+    appendPoll(data.poll);
+});
+
+socket.on('poll-vote-updated', function(data) {
+    updatePollDisplay(data.poll);
+});
+
+socket.on('poll-closed', function(data) {
+    closePollDisplay(data.pollId);
+});
+
+// Helper: Append new poll to page
+function appendPoll(poll) {
+    let container = document.getElementById('pollsContainer');
+    
+    if (!container) {
+        const typingIndicator = document.getElementById('typingIndicator');
+        container = document.createElement('div');
+        container.id = 'pollsContainer';
+        container.className = 'mb-3';
+        typingIndicator.insertAdjacentElement('afterend', container);
+    }
+
+    const pollHtml = `
+        <div class="card shadow-sm poll-card" data-poll-id="${poll.id}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h6 class="poll-question mb-0">
+                        <i class="bi bi-bar-chart"></i> ${poll.question}
+                    </h6>
+                    ${poll.creator_id == userId ? `
+                        <button class="btn btn-sm btn-outline-danger btn-close-poll" data-poll-id="${poll.id}">
+                            <i class="bi bi-x-circle"></i>
+                        </button>
+                    ` : ''}
+                </div>
+                <small class="text-muted">
+                    Created by <strong>${poll.creator.nickname}</strong> ·
+                    ${new Date(poll.created_at).toLocaleString()}
+                </small>
+                <div class="poll-options mt-3">
+                    ${poll.options.map(option => `
+                        <div class="poll-option-item" data-option-id="${option.id}">
+                            <div class="poll-option-header">
+                                <span class="poll-option-text">${option.text}</span>
+                                <span class="poll-option-votes">${option.votes || 0} votes</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="poll-footer mt-2">
+                    <small class="text-muted">
+                        <i class="bi bi-people"></i> Total: ${poll.totalVotes} votes
+                    </small>
+                </div>
+            </div>
+        </div>
+    `;
+
+    container.insertAdjacentHTML('beforeend', pollHtml);
+}
+
+// Helper: Update poll display after vote
+function updatePollDisplay(poll) {
+    const pollCard = document.querySelector(`.poll-card[data-poll-id="${poll.id}"]`);
+    if (!pollCard) return;
+
+    const totalVotes = poll.totalVotes;
+    const userVote = poll.userVote;
+
+    // Update options
+    poll.options.forEach(option => {
+        const optionEl = pollCard.querySelector(`.poll-option-item[data-option-id="${option.id}"]`);
+        if (!optionEl) return;
+
+        const percentage = totalVotes > 0 ? ((option.votes || 0) / totalVotes * 100).toFixed(1) : 0;
+        const hasVoted = userVote === option.id;
+
+        optionEl.querySelector('.poll-option-votes').textContent = 
+            userVote ? `${option.votes || 0} votes (${percentage}%)` : `${option.votes || 0} votes`;
+
+        if (userVote) {
+            let progressBar = optionEl.querySelector('.poll-progress-bar');
+            if (!progressBar) {
+                progressBar = document.createElement('div');
+                progressBar.className = 'poll-progress-bar';
+                progressBar.innerHTML = `<div class="poll-progress-fill ${hasVoted ? 'voted' : ''}"></div>`;
+                optionEl.appendChild(progressBar);
+            }
+            
+            const fill = progressBar.querySelector('.poll-progress-fill');
+            fill.style.width = `${percentage}%`;
+            if (hasVoted) fill.classList.add('voted');
+
+            optionEl.classList.add('voted');
+        }
+    });
+
+    // Update total votes
+    const footer = pollCard.querySelector('.poll-footer small');
+    footer.innerHTML = `
+        <i class="bi bi-people"></i> Total: ${totalVotes} votes
+        ${userVote ? '· <span class="badge bg-success"><i class="bi bi-check-circle"></i> Voted</span>' : ''}
+    `;
+}
+
+// Helper: Close poll display
+function closePollDisplay(pollId) {
+    const pollCard = document.querySelector(`.poll-card[data-poll-id="${pollId}"]`);
+    if (!pollCard) return;
+
+    const closeBtn = pollCard.querySelector('.btn-close-poll');
+    if (closeBtn) closeBtn.remove();
+
+    const footer = pollCard.querySelector('.poll-footer small');
+    footer.innerHTML += ' · <span class="badge bg-secondary">Closed</span>';
+
+    // Disable voting
+    pollCard.querySelectorAll('.poll-option-item:not(.voted)').forEach(el => {
+        el.style.pointerEvents = 'none';
+        el.style.opacity = '0.6';
+    });
+}
+
 // Load on page load
 document.addEventListener('DOMContentLoaded', function() {
+    // Debug polls container
+    const pollsContainer = document.getElementById('pollsContainer');
+    if (pollsContainer) {
+        console.log('✅ pollsContainer EXISTS in DOM');
+        console.log('  Children:', pollsContainer.children.length);
+    } else {
+        console.log('❌ pollsContainer NOT FOUND in DOM');
+    }
+    
     scrollToBottom();
 
     // Auto-highlight if search query exists

@@ -117,6 +117,65 @@ CREATE TABLE IF NOT EXISTS `forum_reads` (
   COLLATE utf8mb4_unicode_ci;
 
 -- ========================================
+-- Table: polls
+-- Description: Stores polls/voting within forums
+-- ========================================
+CREATE TABLE IF NOT EXISTS `polls` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `forum_id` INT NOT NULL,
+  `creator_id` INT NOT NULL,
+  `question` VARCHAR(255) NOT NULL,
+  `options` JSON NOT NULL COMMENT 'Array of poll options: [{id, text, votes}]',
+  `expires_at` DATETIME DEFAULT NULL,
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_forum_id` (`forum_id`),
+  INDEX `idx_creator_id` (`creator_id`),
+  INDEX `idx_is_active` (`is_active`),
+  CONSTRAINT `fk_polls_forum` 
+    FOREIGN KEY (`forum_id`) 
+    REFERENCES `forums` (`id`) 
+    ON DELETE CASCADE 
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_polls_creator` 
+    FOREIGN KEY (`creator_id`) 
+    REFERENCES `users` (`id`) 
+    ON DELETE CASCADE 
+    ON UPDATE CASCADE
+) ENGINE=InnoDB 
+  DEFAULT CHARACTER SET utf8mb4 
+  COLLATE utf8mb4_unicode_ci;
+
+-- ========================================
+-- Table: poll_votes
+-- Description: Tracks individual user votes on polls
+-- ========================================
+CREATE TABLE IF NOT EXISTS `poll_votes` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `poll_id` INT NOT NULL,
+  `user_id` INT NOT NULL,
+  `option_id` INT NOT NULL COMMENT 'ID of the selected option',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_unique_user_poll_vote` (`poll_id`, `user_id`),
+  INDEX `idx_poll_id` (`poll_id`),
+  INDEX `idx_user_id` (`user_id`),
+  CONSTRAINT `fk_poll_votes_poll` 
+    FOREIGN KEY (`poll_id`) 
+    REFERENCES `polls` (`id`) 
+    ON DELETE CASCADE 
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_poll_votes_user` 
+    FOREIGN KEY (`user_id`) 
+    REFERENCES `users` (`id`) 
+    ON DELETE CASCADE 
+    ON UPDATE CASCADE
+) ENGINE=InnoDB 
+  DEFAULT CHARACTER SET utf8mb4 
+  COLLATE utf8mb4_unicode_ci;
+
+-- ========================================
 -- Sample Data (Optional)
 -- ========================================
 

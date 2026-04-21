@@ -5,7 +5,8 @@
       "Bash(node *)",
       "Bash(timeout *)",
       "Bash(tasklist *)",
-      "Bash(taskkill *)"
+      "Bash(taskkill *)",
+      "Bash(del *)"
     ]
   },
   "$version": 3

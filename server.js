@@ -17,6 +17,8 @@ const User = require('./models/User');
 const Forum = require('./models/Forum');
 const Chat = require('./models/Chat');
 const ForumRead = require('./models/ForumRead');
+const Poll = require('./models/Poll');
+const PollVote = require('./models/PollVote');
 
 // ========== Model Relationships ==========
 // User - Forum relationships
@@ -34,6 +36,22 @@ Chat.belongsTo(Forum, { foreignKey: 'forum_id', as: 'forum' });
 // Self-reference for replies (Chat - Chat)
 Chat.belongsTo(Chat, { foreignKey: 'parent_chat_id', as: 'parent' });
 Chat.hasMany(Chat, { foreignKey: 'parent_chat_id', as: 'replies' });
+
+// User - Poll relationships
+User.hasMany(Poll, { foreignKey: 'creator_id', as: 'polls' });
+Poll.belongsTo(User, { foreignKey: 'creator_id', as: 'creator' });
+
+// Forum - Poll relationships
+Forum.hasMany(Poll, { foreignKey: 'forum_id', as: 'polls' });
+Poll.belongsTo(Forum, { foreignKey: 'forum_id', as: 'forum' });
+
+// Poll - PollVote relationships
+Poll.hasMany(PollVote, { foreignKey: 'poll_id', as: 'votes' });
+PollVote.belongsTo(Poll, { foreignKey: 'poll_id', as: 'poll' });
+
+// User - PollVote relationships
+User.hasMany(PollVote, { foreignKey: 'user_id', as: 'pollVotes' });
+PollVote.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 // ========================================
 
 // Import routes
