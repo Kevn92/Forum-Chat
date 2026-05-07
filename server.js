@@ -19,6 +19,7 @@ const Chat = require('./models/Chat');
 const ForumRead = require('./models/ForumRead');
 const Poll = require('./models/Poll');
 const PollVote = require('./models/PollVote');
+const AuthLog = require('./models/AuthLog');
 
 // ========== Model Relationships ==========
 // User - Forum relationships
@@ -200,7 +201,7 @@ async function startServer() {
     console.log('✅ Database connected successfully');
 
     // Sync database
-    await sequelize.sync({ alter: true });
+    await sequelize.sync();
     console.log('✅ Database synced');
 
     // Ensure all passwords are hashed (for plaintext legacy values)

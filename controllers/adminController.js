@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Forum = require('../models/Forum');
 const Chat = require('../models/Chat');
 const ForumRead = require('../models/ForumRead');
+const AuthLog = require('../models/AuthLog');
 const { Op } = require('sequelize');
 const fs = require('fs');
 const path = require('path');
@@ -78,8 +79,22 @@ exports.getUsers = async (req, res) => {
       });
     }
 
+    const totalUsersCount = sortedUsers.length;
+    const totalRegularCount = sortedUsers.filter(u => u.role === 'user').length;
+    const totalAdminCount = sortedUsers.filter(u => u.role === 'admin').length;
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = 10;
+    const totalPages = Math.ceil(totalUsersCount / limit);
+    const paginatedUsers = sortedUsers.slice((page - 1) * limit, page * limit);
+
     res.render('admin/users', {
-      users: sortedUsers,
+      users: paginatedUsers,
+      totalUsersCount,
+      totalRegularCount,
+      totalAdminCount,
+      currentPage: page,
+      totalPages: totalPages,
       userId: req.session.userId,
       role: req.session.role,
       theme: req.session.theme || 'light',
@@ -154,6 +169,28 @@ exports.deleteUser = async (req, res) => {
   }
 };
 
+exports.resetPassword = async (req, res) => {
+  try {
+    const targetUser = await User.findByPk(req.params.userId);
+    
+    if (!targetUser) {
+      req.flash('error', 'User tidak ditemukan');
+      return res.redirect('/admin/users');
+    }
+
+    // Set the new password, the beforeUpdate hook will hash it automatically
+    targetUser.password = 'Jumanji99';
+    await targetUser.save();
+
+    req.flash('success', `Password user ${targetUser.username} berhasil di-reset menjadi Jumanji99`);
+    res.redirect('/admin/users');
+  } catch (error) {
+    console.error(error);
+    req.flash('error', 'Gagal mereset password');
+    res.redirect('/admin/users');
+  }
+};
+
 exports.deleteForum = async (req, res) => {
   try {
     const forum = await Forum.findByPk(req.params.forumId);
@@ -180,6 +217,36 @@ exports.deleteForum = async (req, res) => {
   } catch (error) {
     console.error(error);
     req.flash('error', 'Gagal menghapus forum');
+    res.redirect('/admin/users');
+  }
+};
+
+exports.getLogs = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = 10;
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await AuthLog.findAndCountAll({
+      order: [['created_at', 'DESC']],
+      limit,
+      offset
+    });
+
+    const totalPages = Math.ceil(count / limit);
+
+    res.render('admin/logs', {
+      logs: rows,
+      currentPage: page,
+      totalPages: totalPages,
+      totalLogs: count,
+      userId: req.session.userId,
+      role: req.session.role,
+      theme: req.session.theme || 'light'
+    });
+  } catch (error) {
+    console.error(error);
+    req.flash('error', 'Gagal memuat log aktivitas');
     res.redirect('/admin/users');
   }
 };

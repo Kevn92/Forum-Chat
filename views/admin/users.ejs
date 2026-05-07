@@ -10,25 +10,35 @@
                 </a>
             </div>
 
-            <% if (typeof success !== 'undefined' && success) { %>
-                <div class="alert alert-success alert-dismissible fade show">
-                    <i class="bi bi-check-circle"></i> <%= success %>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
+            <% if (typeof success !== 'undefined' && success && success.length > 0) { %>
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Berhasil',
+                            text: '<%= success[0] %>'
+                        });
+                    });
+                </script>
             <% } %>
 
-            <% if (typeof error !== 'undefined' && error) { %>
-                <div class="alert alert-danger alert-dismissible fade show">
-                    <i class="bi bi-exclamation-triangle"></i> <%= error %>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
+            <% if (typeof error !== 'undefined' && error && error.length > 0) { %>
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Gagal',
+                            text: '<%= error[0] %>'
+                        });
+                    });
+                </script>
             <% } %>
 
             <!-- Users Table -->
             <div class="card shadow admin-card">
                 <div class="card-header admin-card-header">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="bi bi-people"></i> All Users (<%= users.length %>)</h5>
+                        <h5 class="mb-0"><i class="bi bi-people"></i> All Users (<%= totalUsersCount %>)</h5>
                         <form action="/admin/users" method="GET" class="d-flex">
                             <div class="input-group input-group-sm">
                                 <input type="text" class="form-control" name="search"
@@ -106,7 +116,16 @@
                                         </td>
                                         <td>
                                             <% if (user.id !== userId) { %>
-                                                <button class="btn btn-sm btn-danger"
+                                                <button class="btn btn-sm btn-warning text-dark"
+                                                        onclick="confirmResetPassword('<%- user.username.replace(/'/g, "\\'") %>', <%= user.id %>)">
+                                                    <i class="bi bi-key"></i> Reset
+                                                </button>
+                                                <form id="reset-password-form-<%= user.id %>"
+                                                      action="/admin/users/reset-password/<%= user.id %>"
+                                                      method="POST" class="d-none">
+                                                </form>
+
+                                                <button class="btn btn-sm btn-danger ms-1"
                                                         onclick="confirmDeleteUser('<%- user.username.replace(/'/g, "\\'") %>', <%= user.id %>)">
                                                     <i class="bi bi-trash"></i> Delete
                                                 </button>
@@ -123,6 +142,52 @@
                             </tbody>
                         </table>
                     </div>
+                    
+                    <!-- Pagination -->
+                    <% if (totalPages > 1) { %>
+                        <nav aria-label="Users pagination" class="p-3 border-top bg-light">
+                            <ul class="pagination justify-content-center mb-0">
+                                <!-- Previous Button -->
+                                <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
+                                    <a class="page-link" href="<%= currentPage === 1 ? '#' : '?page=' + (currentPage - 1) + (search ? '&search=' + encodeURIComponent(search) : '') %>" tabindex="-1">
+                                        <i class="bi bi-chevron-left"></i> Previous
+                                    </a>
+                                </li>
+                                
+                                <!-- Page Numbers -->
+                                <% 
+                                let startPage = Math.max(1, currentPage - 2);
+                                let endPage = Math.min(totalPages, currentPage + 2);
+                                
+                                if (startPage > 1) { %>
+                                    <li class="page-item"><a class="page-link" href="?page=1<%= search ? '&search=' + encodeURIComponent(search) : '' %>">1</a></li>
+                                    <% if (startPage > 2) { %>
+                                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                                    <% } %>
+                                <% } %>
+
+                                <% for(let i = startPage; i <= endPage; i++) { %>
+                                    <li class="page-item <%= currentPage === i ? 'active' : '' %>">
+                                        <a class="page-link" href="?page=<%= i %><%= search ? '&search=' + encodeURIComponent(search) : '' %>"><%= i %></a>
+                                    </li>
+                                <% } %>
+
+                                <% if (endPage < totalPages) { %>
+                                    <% if (endPage < totalPages - 1) { %>
+                                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                                    <% } %>
+                                    <li class="page-item"><a class="page-link" href="?page=<%= totalPages %><%= search ? '&search=' + encodeURIComponent(search) : '' %>"><%= totalPages %></a></li>
+                                <% } %>
+
+                                <!-- Next Button -->
+                                <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
+                                    <a class="page-link" href="<%= currentPage === totalPages ? '#' : '?page=' + (currentPage + 1) + (search ? '&search=' + encodeURIComponent(search) : '') %>">
+                                        Next <i class="bi bi-chevron-right"></i>
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
+                    <% } %>
                 </div>
             </div>
 
@@ -131,7 +196,7 @@
                 <div class="col-md-4">
                     <div class="card shadow-sm admin-stat-card">
                         <div class="card-body text-center">
-                            <h3 class="admin-stat-number text-primary"><%= users.length %></h3>
+                            <h3 class="admin-stat-number text-primary"><%= totalUsersCount %></h3>
                             <p class="admin-stat-label mb-0">Total Users</p>
                         </div>
                     </div>
@@ -139,7 +204,7 @@
                 <div class="col-md-4">
                     <div class="card shadow-sm admin-stat-card">
                         <div class="card-body text-center">
-                            <h3 class="admin-stat-number text-success"><%= users.filter(u => u.role === 'user').length %></h3>
+                            <h3 class="admin-stat-number text-success"><%= totalRegularCount %></h3>
                             <p class="admin-stat-label mb-0">Regular Users</p>
                         </div>
                     </div>
@@ -147,7 +212,7 @@
                 <div class="col-md-4">
                     <div class="card shadow-sm admin-stat-card">
                         <div class="card-body text-center">
-                            <h3 class="admin-stat-number text-danger"><%= users.filter(u => u.role === 'admin').length %></h3>
+                            <h3 class="admin-stat-number text-danger"><%= totalAdminCount %></h3>
                             <p class="admin-stat-label mb-0">Admins</p>
                         </div>
                     </div>
@@ -180,6 +245,26 @@ function confirmDeleteUser(username, userId) {
     }).then((result) => {
         if (result.isConfirmed) {
             document.getElementById('delete-user-form-' + userId).submit();
+        }
+    });
+}
+
+function confirmResetPassword(username, userId) {
+    Swal.fire({
+        title: 'Reset Password?',
+        html: `Are you sure you want to reset password for user <strong>"${username}"</strong>?<br><br>
+               The password will be reset to: <span class="text-primary fw-bold" style="font-size: 1.2rem;">Jumanji99</span>`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#ffc107',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: '<span class="text-dark">Yes, reset it</span>',
+        cancelButtonText: 'Cancel',
+        background: document.body.classList.contains('theme-dark') ? '#2d2d2d' : '#ffffff',
+        color: document.body.classList.contains('theme-dark') ? '#ffffff' : '#1f2937'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            document.getElementById('reset-password-form-' + userId).submit();
         }
     });
 }

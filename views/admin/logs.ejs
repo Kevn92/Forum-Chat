@@ -1,0 +1,123 @@
+<%- include('../partials/header') %>
+
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h2><i class="bi bi-journal-text"></i> Activity Logs</h2>
+        <a href="/admin/users" class="btn btn-secondary">
+            <i class="bi bi-people"></i> Manage Users
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Time</th>
+                        <th>Username</th>
+                        <th>Activity</th>
+                        <th>IP Address</th>
+                        <th>User Agent</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% if (logs && logs.length > 0) { %>
+                        <% logs.forEach(log => { %>
+                            <tr>
+                                <td>
+                                    <%= new Date(log.created_at).toLocaleString() %>
+                                </td>
+                                <td>
+                                    <% if (log.username) { %>
+                                        <span class="badge bg-secondary"><%= log.username %></span>
+                                    <% } else { %>
+                                        <span class="text-muted">Unknown</span>
+                                    <% } %>
+                                </td>
+                                <td>
+                                    <% if (log.activity === 'LOGIN_SUCCESS') { %>
+                                        <span class="badge bg-success"><i class="bi bi-box-arrow-in-right"></i> Login Success</span>
+                                    <% } else if (log.activity === 'LOGIN_FAILED') { %>
+                                        <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Login Failed</span>
+                                    <% } else if (log.activity === 'LOGOUT') { %>
+                                        <span class="badge bg-warning text-dark"><i class="bi bi-box-arrow-right"></i> Logout</span>
+                                    <% } else if (log.activity === 'REGISTER_SUCCESS') { %>
+                                        <span class="badge bg-primary"><i class="bi bi-person-plus"></i> Register Success</span>
+                                    <% } else { %>
+                                        <span class="badge bg-info"><%= log.activity %></span>
+                                    <% } %>
+                                </td>
+                                <td><small class="text-muted"><%= log.ip_address || '-' %></small></td>
+                                <td>
+                                    <small class="text-muted" title="<%= log.user_agent %>">
+                                        <%= log.user_agent ? (log.user_agent.length > 50 ? log.user_agent.substring(0, 50) + '...' : log.user_agent) : '-' %>
+                                    </small>
+                                </td>
+                            </tr>
+                        <% }); %>
+                    <% } else { %>
+                        <tr>
+                            <td colspan="5" class="text-center py-4">
+                                <i class="bi bi-inbox text-muted" style="font-size: 2rem;"></i>
+                                <p class="text-muted mt-2">No activity logs found.</p>
+                            </td>
+                        </tr>
+                    <% } %>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <% if (totalPages > 1) { %>
+            <nav aria-label="Logs pagination" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    <!-- Previous Button -->
+                    <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
+                        <a class="page-link" href="<%= currentPage === 1 ? '#' : '?page=' + (currentPage - 1) %>" tabindex="-1">
+                            <i class="bi bi-chevron-left"></i> Previous
+                        </a>
+                    </li>
+                    
+                    <!-- Page Numbers -->
+                    <% 
+                    let startPage = Math.max(1, currentPage - 2);
+                    let endPage = Math.min(totalPages, currentPage + 2);
+                    
+                    if (startPage > 1) { %>
+                        <li class="page-item"><a class="page-link" href="?page=1">1</a></li>
+                        <% if (startPage > 2) { %>
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        <% } %>
+                    <% } %>
+
+                    <% for(let i = startPage; i <= endPage; i++) { %>
+                        <li class="page-item <%= currentPage === i ? 'active' : '' %>">
+                            <a class="page-link" href="?page=<%= i %>"><%= i %></a>
+                        </li>
+                    <% } %>
+
+                    <% if (endPage < totalPages) { %>
+                        <% if (endPage < totalPages - 1) { %>
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        <% } %>
+                        <li class="page-item"><a class="page-link" href="?page=<%= totalPages %>"><%= totalPages %></a></li>
+                    <% } %>
+
+                    <!-- Next Button -->
+                    <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
+                        <a class="page-link" href="<%= currentPage === totalPages ? '#' : '?page=' + (currentPage + 1) %>">
+                            Next <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            <div class="text-center mt-2 text-muted small">
+                Showing page <%= currentPage %> of <%= totalPages %> (Total <%= totalLogs %> logs)
+            </div>
+        <% } %>
+    </div>
+</div>
+
+<%- include('../partials/footer') %>

@@ -7,11 +7,27 @@
                 <h4 class="mb-0"><i class="bi bi-gear"></i> Profile Settings</h4>
             </div>
             <div class="card-body">
-                <% if (typeof error !== 'undefined' && error) { %>
-                    <div class="alert alert-danger"><%= error %></div>
+                <% if (typeof error !== 'undefined' && error && error.length > 0) { %>
+                    <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Gagal',
+                                text: '<%= error[0] %>'
+                            });
+                        });
+                    </script>
                 <% } %>
-                <% if (typeof success !== 'undefined' && success) { %>
-                    <div class="alert alert-success"><%= success %></div>
+                <% if (typeof success !== 'undefined' && success && success.length > 0) { %>
+                    <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Berhasil',
+                                text: '<%= success[0] %>'
+                            });
+                        });
+                    </script>
                 <% } %>
                 <!-- Profile Picture -->
                 <div class="text-center mb-4">

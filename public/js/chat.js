@@ -225,7 +225,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check if we're on a chat page
     const forumId = document.getElementById('forum-id')?.value;
     if (forumId) {
-        startAutoRefresh(forumId);
+        // startAutoRefresh(forumId); // Disabled auto-refresh because Socket.IO handles real-time updates without reload
         scrollToBottom();
     }
     
