@@ -72,7 +72,7 @@
         <!-- Pagination -->
         <% if (totalPages > 1) { %>
             <nav aria-label="Logs pagination" class="mt-4">
-                <ul class="pagination justify-content-center">
+                <ul class="pagination custom-pagination justify-content-center">
                     <!-- Previous Button -->
                     <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
                         <a class="page-link" href="<%= currentPage === 1 ? '#' : '?page=' + (currentPage - 1) %>" tabindex="-1">

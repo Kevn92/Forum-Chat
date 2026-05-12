@@ -145,8 +145,9 @@
                     
                     <!-- Pagination -->
                     <% if (totalPages > 1) { %>
-                        <nav aria-label="Users pagination" class="p-3 border-top bg-light">
-                            <ul class="pagination justify-content-center mb-0">
+                        <div class="pagination-container">
+                            <nav aria-label="Users pagination">
+                                <ul class="pagination custom-pagination justify-content-center mb-0">
                                 <!-- Previous Button -->
                                 <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
                                     <a class="page-link" href="<%= currentPage === 1 ? '#' : '?page=' + (currentPage - 1) + (search ? '&search=' + encodeURIComponent(search) : '') %>" tabindex="-1">
@@ -186,7 +187,8 @@
                                     </a>
                                 </li>
                             </ul>
-                        </nav>
+                            </nav>
+                        </div>
                     <% } %>
                 </div>
             </div>
